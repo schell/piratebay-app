@@ -1,7 +1,7 @@
 //! Wire types for sending between BE<->FE.
 
 /// Info about a torrent file.
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, PartialEq)]
 pub struct Torrent {
     pub added: String,
     pub category: String,
@@ -17,6 +17,24 @@ pub struct Torrent {
     pub status: String,
     pub username: String,
     pub magnet: Option<String>,
+}
+
+impl Torrent {
+    pub fn added_i64(&self) -> i64 {
+        self.added.parse().unwrap_or_default()
+    }
+
+    pub fn seeders_i64(&self) -> i64 {
+        self.seeders.parse().unwrap_or_default()
+    }
+
+    pub fn leechers_i64(&self) -> i64 {
+        self.leechers.parse().unwrap_or_default()
+    }
+
+    pub fn size_bytes(&self) -> usize {
+        self.size.parse().unwrap_or_default()
+    }
 }
 
 /// Any error.
