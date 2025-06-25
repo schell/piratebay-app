@@ -8,13 +8,18 @@ edition = "2021"
 console_error_panic_hook = "0.1.7"
 console_log = "1.0.0"
 futures-lite = "2.6.0"
-log = "0.4.27"
+log.workspace = true
+pb-wire-types = { path = "crates/pb-wire-types" }
 mogwai = { version = "0.7" }
-serde = { version = "1", features = ["derive"] }
+serde.workspace = true
 serde-wasm-bindgen = "0.6"
-wasm-bindgen = "0.2"
-wasm-bindgen-futures = "0.4"
 
 [workspace]
-members = ["src-tauri"]
+members = [
+  "crates/pb-wire-types",
+  "src-tauri"
+]
 
+[workspace.dependencies]
+log = "0.4.27"
+serde = { version = "1", features = ["derive"] }

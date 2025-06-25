@@ -2,18 +2,53 @@ use futures_lite::FutureExt;
 // use leptos::task::spawn_local;
 // use leptos::{ev::SubmitEvent, prelude::*};
 use mogwai::{future::MogwaiFutureExt, web::prelude::*};
+use pb_wire_types::*;
 use serde::{Deserialize, Serialize};
 use wasm_bindgen::prelude::*;
 
-#[wasm_bindgen]
-extern "C" {
-    #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"])]
-    async fn invoke(cmd: &str, args: JsValue) -> JsValue;
+mod invoke {
+    use super::*;
+
+    #[wasm_bindgen]
+    extern "C" {
+        #[wasm_bindgen(js_namespace = ["window", "__TAURI__", "core"], catch)]
+        async fn invoke(cmd: &str, args: JsValue) -> Result<JsValue, JsValue>;
+    }
+
+    fn deserialize_as<T: serde::de::DeserializeOwned>(value: JsValue) -> Result<T, Error> {
+        match serde_wasm_bindgen::from_value::<T>(value) {
+            Ok(t) => Ok(t),
+            Err(e) => {
+                log::error!("e: {e:#?}");
+                Err(Error {
+                    msg: "Could not deserialize".into(),
+                })
+            }
+        }
+    }
+
+    pub async fn cmd<T: serde::Serialize, X: serde::de::DeserializeOwned>(
+        name: &str,
+        args: &T,
+    ) -> Result<X, Error> {
+        let value = serde_wasm_bindgen::to_value(args)
+            .map_err(|e| format!("could not serialize {}: {e}", std::any::type_name::<T>()))?;
+        let result = invoke(name, value).await;
+        log::info!("result: {result:#?}");
+        match result {
+            Ok(value) => deserialize_as::<X>(value),
+            Err(e) => Err(deserialize_as::<Error>(e)?),
+        }
+    }
 }
 
-#[derive(serde::Serialize, serde::Deserialize)]
-struct GreetArgs {
-    name: String,
+pub async fn search(query: &str) -> Result<Vec<Torrent>, Error> {
+    #[derive(serde::Serialize)]
+    struct Query<'a> {
+        query: &'a str,
+    }
+
+    invoke::cmd("search", &Query { query }).await
 }
 
 #[derive(ViewChild)]
@@ -21,27 +56,17 @@ pub struct App<V: View> {
     #[child]
     wrapper: V::Element,
     input: V::Element,
-    on_submit_greeting: V::EventListener,
-    greeting_text: V::Text,
+    on_submit_query: V::EventListener,
+    status_text: V::Text,
 }
 
 impl<V: View> Default for App<V> {
     fn default() -> Self {
         rsx! {
             let wrapper = main(class="container") {
-                h1() { "Welcome to Tauri + Mogwai"}
-
-                div(class="row") {
-                    a(href="https://tauri.app", target="_blank") {
-                        img(src="public/tauri.svg", class="logo tauri", alt="Tauri logo"){}
-                    }
-                    a(href="https://docs.rs/mogwai/", target="_blank") {
-                        img(src="public/mogwai.svg", class="logo mogwai", alt="Mogwai logo"){}
-                    }
-                }
-                p() { "Click on the Tauri and Mogwai logos to learn more." }
-
-                form(class="row", on:submit = on_submit_greeting) {
+                h1() { "Welcome to piratebay-app" }
+                p() { "Enter a search query" }
+                form(class="row", on:submit = on_submit_query) {
                     let input = input(
                         id="greet-input",
                         placeholder="Enter a name...",
@@ -49,15 +74,15 @@ impl<V: View> Default for App<V> {
                     button(type="submit"){ "Greet" }
                 }
                 p() {
-                    let greeting_text = ""
+                    let status_text = ""
                 }
             }
         }
         Self {
             wrapper,
             input,
-            on_submit_greeting,
-            greeting_text,
+            on_submit_query,
+            status_text,
         }
     }
 }
@@ -65,16 +90,24 @@ impl<V: View> Default for App<V> {
 impl<V: View> App<V> {
     pub async fn step(&mut self) {
         log::info!("step");
-        let ev = self.on_submit_greeting.next().await;
+        let ev = self.on_submit_query.next().await;
         log::info!("submit");
         ev.dyn_ev(|ev: &web_sys::Event| ev.prevent_default());
-        let name = self
+        let search_query = self
             .input
             .dyn_el(|input: &web_sys::HtmlInputElement| input.value())
             .unwrap_or_default();
-        let args = serde_wasm_bindgen::to_value(&GreetArgs { name }).unwrap();
-        // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-        let new_msg = invoke("greet", args).await.as_string().unwrap();
-        self.greeting_text.set_text(new_msg);
+        self.status_text
+            .set_text(format!("Searching for '{search_query}'..."));
+
+        match search(&search_query).await {
+            Ok(torrents) => {
+                self.status_text
+                    .set_text(format!("Found {} results.", torrents.len()));
+            }
+            Err(Error { msg }) => {
+                self.status_text.set_text(msg);
+            }
+        }
     }
 }
