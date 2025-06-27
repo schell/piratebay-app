@@ -19,7 +19,6 @@
 
 .container {
   margin: 0;
-  padding-top: 10vh;
   display: flex;
   flex-direction: column;
   justify-content: center;
@@ -42,6 +41,18 @@
   justify-content: center;
 }
 
+table {
+  table-layout: fixed;
+  width: 100%;
+}
+
+.search-results tr:nth-child(even) :nth-child(odd) {
+  background:#fefefe;
+}
+.search-results tr:nth-child(odd) :nth-child(even) {
+  background:#efefef;
+}
+
 .search-results .torrent-name {
   justify-content: left;
   text-align: left;
@@ -52,7 +63,7 @@
   text-align: right;
 }
 
-.search-results, th {
+.search-results th {
   padding-left: 1em;
   padding-right: 1em;
 }
@@ -60,6 +71,10 @@
 .direction {
   position: absolute;
   float: right;
+}
+
+.search-result-item:hover {
+  text-decoration: underline;
 }
 
 a {

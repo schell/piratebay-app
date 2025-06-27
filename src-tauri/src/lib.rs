@@ -1,6 +1,4 @@
-use tokio::sync::Mutex;
-
-use pb_wire_types::{Error, Torrent};
+use pb_wire_types::{Error, Torrent, TorrentInfo};
 use piratebay::pirateclient::PirateClient;
 use tauri::{Manager, State};
 
@@ -50,6 +48,41 @@ fn pb_torrent_to_wire(pb_t: piratebay::types::Torrent) -> Torrent {
     }
 }
 
+fn pb_torrent_info_to_wire(pb_ti: piratebay::types::TorrentInfo) -> TorrentInfo {
+    let piratebay::types::TorrentInfo {
+        added,
+        category,
+        descr,
+        download_count,
+        id,
+        info_hash,
+        leechers,
+        name,
+        num_files,
+        seeders,
+        size,
+        status,
+        username,
+        magnet,
+    } = pb_ti;
+    TorrentInfo {
+        added,
+        category,
+        descr,
+        download_count,
+        id,
+        info_hash,
+        leechers,
+        name,
+        num_files,
+        seeders,
+        size,
+        status,
+        username,
+        magnet,
+    }
+}
+
 #[tauri::command]
 async fn search(state: State<'_, App>, query: &str) -> Result<Vec<Torrent>, Error> {
     log::info!("searching: {query}");
@@ -59,6 +92,13 @@ async fn search(state: State<'_, App>, query: &str) -> Result<Vec<Torrent>, Erro
         .map(pb_torrent_to_wire)
         .collect::<Vec<_>>();
     Ok(torrents)
+}
+
+#[tauri::command]
+async fn info(state: State<'_, App>, id: &str) -> Result<TorrentInfo, Error> {
+    log::info!("info: {id}");
+    let torrent = state.client.get_info(id).await?;
+    Ok(pb_torrent_info_to_wire(torrent))
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -78,7 +118,7 @@ pub fn run() {
             });
             Ok(())
         })
-        .invoke_handler(tauri::generate_handler![greet, search])
+        .invoke_handler(tauri::generate_handler![greet, search, info])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
 }
